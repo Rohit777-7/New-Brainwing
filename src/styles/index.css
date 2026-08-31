@@ -53,49 +53,78 @@ button, a { cursor: pointer; }
 }
 
 @keyframes marker-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.15); opacity: 0.9; }
+  0%, 100% { transform: scaleX(1); opacity: 0.5; }
+  50% { transform: scaleX(1.4); opacity: 0.9; }
 }
 
+/*
+ * The marker button's own box must match the pin's footprint exactly -
+ * Mapbox positions the whole element by its bounding box, so if the
+ * label sat inside as a flex sibling it would widen that box and the
+ * anchor point (element center) would land mid-label instead of on the
+ * pin, silently dragging the "real" coordinate west by half the label's
+ * width. The label is an absolutely-positioned overlay instead, so it
+ * never affects where the pin actually anchors on the map.
+ */
 .map-marker {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: block;
+  width: 20px;
+  height: 27px;
   background: none;
   border: none;
   padding: 0;
 }
 
-.map-marker__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 9999px;
-  background: #ffdca0;
-  box-shadow: 0 0 4px 1px rgba(255, 200, 120, 0.9), 0 0 16px 4px rgba(255, 180, 90, 0.5);
-  opacity: 0.95;
-  transition: opacity 0.3s, transform 0.3s;
-  display: block;
+.map-marker--project {
+  width: 15px;
+  height: 20px;
 }
 
-.map-marker--project .map-marker__dot { width: 8px; height: 8px; }
+/*
+ * Neon pin marker in the same warm amber as the old glow dot - an
+ * outlined location-pin glyph with a drop-shadow glow instead of a
+ * filled icon, plus a soft ellipse "landing glow" at its base.
+ */
+.map-marker__pin {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: #ffd39a;
+  filter:
+    drop-shadow(0 0 3px rgba(255, 205, 140, 0.95))
+    drop-shadow(0 0 9px rgba(255, 180, 100, 0.6))
+    drop-shadow(0 0 18px rgba(255, 160, 80, 0.35));
+  transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+  transform-origin: bottom center;
+}
 
-.map-marker__ring {
+.map-marker__pin svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.map-marker__pin-base {
   position: absolute;
   left: 50%;
-  top: 50%;
-  width: 22px;
-  height: 22px;
-  margin-left: -11px;
-  margin-top: -11px;
+  bottom: -2px;
+  width: 14px;
+  height: 4px;
+  margin-left: -7px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 200, 120, 0.45);
-  animation: marker-pulse 2.4s ease-in-out infinite;
+  background: radial-gradient(ellipse at center, rgba(255, 200, 130, 0.55) 0%, rgba(255, 200, 130, 0) 75%);
+  animation: marker-pulse 2.6s ease-in-out infinite;
 }
 
-.map-marker--project .map-marker__ring { width: 18px; height: 18px; margin-left: -9px; margin-top: -9px; }
+.map-marker--project .map-marker__pin-base { width: 10px; margin-left: -5px; }
 
 .map-marker__label {
+  position: absolute;
+  left: 100%;
+  top: 34%;
+  transform: translateY(-50%);
+  margin-left: 8px;
   font-size: 9px;
   letter-spacing: 0.3em;
   text-transform: uppercase;
@@ -104,12 +133,17 @@ button, a { cursor: pointer; }
   transition: opacity 0.3s;
 }
 
-.map-marker--dimmed .map-marker__dot,
-.map-marker--dimmed .map-marker__ring { opacity: 0.12; }
+.map-marker--dimmed .map-marker__pin,
+.map-marker--dimmed .map-marker__pin-base { opacity: 0.15; }
 .map-marker--dimmed .map-marker__label { opacity: 0.2; }
 
-.map-marker--active .map-marker__dot { opacity: 1; transform: scale(1.35); }
-.map-marker--active .map-marker__ring { border-color: rgba(255, 255, 255, 0.85); }
+.map-marker--active .map-marker__pin {
+  transform: scale(1.15);
+  filter:
+    drop-shadow(0 0 4px rgba(255, 225, 175, 1))
+    drop-shadow(0 0 12px rgba(255, 195, 120, 0.85))
+    drop-shadow(0 0 24px rgba(255, 170, 90, 0.5));
+}
 
 .mapboxgl-popup.map-popup-wrap .mapboxgl-popup-content {
   background: rgba(10, 13, 17, 0.92);

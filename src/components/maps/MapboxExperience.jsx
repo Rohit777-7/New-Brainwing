@@ -36,8 +36,9 @@ const INDIA_VIEW = {
 };
 
 const CITY_ZOOM = {
-  zoom: 11.5,
-  pitch: 45,
+  zoom: 12.2,
+  pitch: 58,
+  bearingOffset: -26,
 };
 
 function createMarkerEl(kind, label) {
@@ -49,18 +50,24 @@ function createMarkerEl(kind, label) {
   el.className =
     `map-marker map-marker--${kind}`;
 
+  const pin = `
+    <span class="map-marker__pin">
+      <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 1C6.48 1 2 5.48 2 11c0 7.5 10 19 10 19s10-11.5 10-19c0-5.52-4.48-10-10-10z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle cx="12" cy="11" r="4" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+    </span>
+    <span class="map-marker__pin-base"></span>
+  `;
+
   el.innerHTML = label
     ? `
-      <span class="map-marker__ring"></span>
-      <span class="map-marker__dot"></span>
+      ${pin}
       <span class="map-marker__label">
         ${label}
       </span>
     `
-    : `
-      <span class="map-marker__ring"></span>
-      <span class="map-marker__dot"></span>
-    `;
+    : pin;
 
   return el;
 }
@@ -389,6 +396,9 @@ export function MapboxExperience() {
   const phase =
     useSceneStore((s) => s.phase);
 
+  const flyingRef =
+    useRef(false);
+
   const city =
     useSceneStore((s) => s.city);
 
@@ -412,18 +422,20 @@ export function MapboxExperience() {
     phase === "project";
 
   /*
-   * City-scale cursor parallax - a subtle mouse-tracked pan on the map
-   * container itself (CSS transform, not the map's real camera) so the
-   * city view feels alive without touching Mapbox's own move/click math.
-   * The container is oversized via CSS so the translated edges never
-   * reveal empty space behind it.
+   * Cursor parallax - a subtle mouse-tracked pan on the map container
+   * itself (CSS transform, not the map's real camera) so both the India
+   * and city views feel alive without touching Mapbox's own move/click
+   * math. The container is oversized via CSS so the translated edges
+   * never reveal empty space behind it.
    */
   const parallaxTarget = useRef({ x: 0, y: 0 });
   const parallaxCurrent = useRef({ x: 0, y: 0 });
   const parallaxActiveRef = useRef(false);
 
   parallaxActiveRef.current =
-    phase === "city" || phase === "project";
+    phase === "india" ||
+    phase === "city" ||
+    phase === "project";
 
   useEffect(() => {
     const onMove = (event) => {
@@ -441,7 +453,7 @@ export function MapboxExperience() {
   }, []);
 
   useEffect(() => {
-    const MAX_OFFSET = 26;
+    const MAX_OFFSET = 16;
     let frame;
 
     const tick = () => {
@@ -504,6 +516,15 @@ export function MapboxExperience() {
 
         attributionControl:
           false,
+
+        /*
+         * Keep the India-scale tiles cached in memory while zoomed into
+         * a city, instead of the default cache evicting them - without
+         * this, flying back to India has to re-fetch/re-decode tiles
+         * from the network, which is what was showing up as lag on the
+         * way back.
+         */
+        maxTileCacheSize: 120,
       });
 
     mapRef.current = map;
@@ -534,7 +555,10 @@ export function MapboxExperience() {
       const KEEP_LABEL =
         /water|sea|ocean|bay|gulf/i;
 
-      map.getStyle().layers.forEach((layer) => {
+      const styleLayers =
+        map.getStyle().layers;
+
+      styleLayers.forEach((layer) => {
         if (layer.type !== "symbol") return;
 
         if (KEEP_LABEL.test(layer.id)) {
@@ -578,24 +602,30 @@ export function MapboxExperience() {
 
       /*
        * Hillshade relief so mountain ranges (Himalayas, Western Ghats)
-       * catch light instead of reading as flat, uniform terrain.
+       * catch light instead of reading as flat, uniform terrain - only
+       * meaningful at the India (country) scale, so it's capped to low
+       * zooms. Without this cap it kept loading/rendering DEM tiles at
+       * city zoom too, which was the main source of the lag flying back
+       * to the India view (a lot of heavy raster tiles to discard).
        */
       map.addSource("brainwing-dem", {
         type: "raster-dem",
         url: "mapbox://mapbox.mapbox-terrain-dem-v1",
         tileSize: 512,
-        maxzoom: 14,
+        maxzoom: 9,
       });
 
-      const firstSymbolLayer = map
-        .getStyle()
-        .layers.find((layer) => layer.type === "symbol");
+      const firstSymbolLayer =
+        styleLayers.find(
+          (layer) => layer.type === "symbol"
+        );
 
       map.addLayer(
         {
           id: "brainwing-hillshade",
           type: "hillshade",
           source: "brainwing-dem",
+          maxzoom: 9,
           paint: {
             "hillshade-illumination-direction": 315,
             "hillshade-exaggeration": 0.85,
@@ -626,7 +656,9 @@ export function MapboxExperience() {
           const marker =
             new mapboxgl.Marker({
               element: el,
-              anchor: "center",
+              anchor: "bottom",
+              rotationAlignment: "viewport",
+              pitchAlignment: "viewport",
             })
               .setLngLat(
                 location.coordinates
@@ -685,21 +717,60 @@ export function MapboxExperience() {
       return;
     }
 
-    if (
-      phase === "city" ||
-      phase === "project"
-    ) {
+    /*
+     * Freeze markers for the duration of a camera flight - the bearing
+     * swoop should read as the map/terrain moving under a fixed pin, not
+     * the pin swinging across the screen with it. Markers created while
+     * still mid-flight (project markers get torn down/rebuilt by the
+     * effect below whenever city/phase changes) also start hidden, so a
+     * rebuild during the flight doesn't pop a marker back into view
+     * early.
+     */
+    const setMarkersHidden = (hidden) => {
+      [
+        ...cityMarkersRef.current,
+        ...projectMarkersRef.current,
+      ].forEach(({ el }) => {
+        el.style.transition =
+          "opacity 0.35s ease";
+        el.style.opacity = hidden
+          ? "0"
+          : "";
+      });
+    };
+
+    const flyWithFrozenMarkers = (
+      options
+    ) => {
+      flyingRef.current = true;
+      setMarkersHidden(true);
+
+      map.once("moveend", () => {
+        flyingRef.current = false;
+        setMarkersHidden(false);
+      });
+
+      map.flyTo(options);
+    };
+
+    if (phase === "city") {
       const location =
         cities[city];
 
       if (location) {
-        map.flyTo({
+        flyWithFrozenMarkers({
           center:
             location.coordinates,
 
-          ...CITY_ZOOM,
+          zoom: CITY_ZOOM.zoom,
+          pitch: CITY_ZOOM.pitch,
+          bearing:
+            map.getBearing() +
+            CITY_ZOOM.bearingOffset,
 
-          duration: 1600,
+          duration: 2600,
+          curve: 1.5,
+          speed: 0.85,
 
           essential: true,
         });
@@ -707,10 +778,11 @@ export function MapboxExperience() {
     }
 
     if (phase === "india") {
-      map.flyTo({
+      flyWithFrozenMarkers({
         ...INDIA_VIEW,
 
-        duration: 1600,
+        duration: 1900,
+        curve: 1.4,
 
         essential: true,
       });
@@ -786,6 +858,15 @@ export function MapboxExperience() {
           "project"
         );
 
+      /*
+       * If a camera flight is already in progress when these markers
+       * get (re)built, start hidden too - the flight's own moveend
+       * handler reveals whatever markers exist at that point.
+       */
+      if (flyingRef.current) {
+        el.style.opacity = "0";
+      }
+
       el.addEventListener(
         "mouseenter",
         () => {
@@ -832,7 +913,9 @@ export function MapboxExperience() {
       const marker =
         new mapboxgl.Marker({
           element: el,
-          anchor: "center",
+          anchor: "bottom",
+          rotationAlignment: "viewport",
+          pitchAlignment: "viewport",
         })
           .setLngLat(
             project.coordinates
@@ -895,10 +978,10 @@ export function MapboxExperience() {
           }
           style={{
             position: "absolute",
-            top: "-5%",
-            left: "-5%",
-            width: "110%",
-            height: "110%",
+            top: "-3%",
+            left: "-3%",
+            width: "106%",
+            height: "106%",
           }}
         />
       ) : (
