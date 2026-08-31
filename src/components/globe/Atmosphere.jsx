@@ -6,6 +6,7 @@ import {
   atmosphereFragment,
 } from "../../shaders/earth/atmosphereShader";
 import { EARTH_RADIUS } from "./earthConfig";
+import { EARTH_PHASE_END, EARTH_INDIA_MIDPOINT } from "../../animations/transitions/cameraPaths";
 
 export function Atmosphere({ progress = 0 }) {
   const material = useRef();
@@ -18,7 +19,7 @@ export function Atmosphere({ progress = 0 }) {
       state.clock.elapsedTime;
 
     if (mesh.current) {
-      const shrink = 1 - THREE.MathUtils.smoothstep(progress, 0.55, 0.85);
+      const shrink = 1 - THREE.MathUtils.smoothstep(progress, EARTH_PHASE_END, EARTH_INDIA_MIDPOINT);
       mesh.current.scale.setScalar(1.045 * shrink);
     }
   });

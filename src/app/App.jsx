@@ -4,6 +4,7 @@ import { SceneExperience } from "../scenes/SceneExperience";
 import { Header } from "../components/navigation/Header";
 import { ProgressIndicator } from "../components/navigation/ProgressIndicator";
 import { ProjectPanel } from "../components/projects/ProjectPanel";
+import { MapboxExperience } from "../components/maps/MapboxExperience";
 import { LoadingScreen } from "../components/ui/LoadingScreen";
 import { CustomCursor } from "../components/ui/CustomCursor";
 import { useSceneStore } from "../store/sceneStore";
@@ -19,23 +20,14 @@ export function App() {
     return () => cleanup?.();
   }, []);
 
-  useEffect(() => {
-    // Hold scroll during the opening cinematic so it can't race the
-    // camera tween or leave the scrollbar ahead of where the reveal left it.
-    document.body.style.overflow = phase === "intro" ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [phase]);
-
   return (
-    <main ref={stageRef} className="relative min-h-[200vh] overflow-x-hidden bg-[#05070a] text-white">
+    <main ref={stageRef} className="relative h-screen w-full overflow-hidden bg-[#05070a] text-white">
       <LoadingScreen />
       <CustomCursor />
       <Header />
       <ProgressIndicator />
 
-      <section className="sticky top-0 z-10 h-screen w-full overflow-hidden">
+      <section className="relative z-10 h-screen w-full overflow-hidden">
         <Canvas
           dpr={[1, 1.75]}
           camera={{ position: [0, 0, 3.0], fov: 30, near: 0.1, far: 100 }}
@@ -43,6 +35,8 @@ export function App() {
         >
           <SceneExperience />
         </Canvas>
+
+        <MapboxExperience />
 
         <div className="pointer-events-none absolute inset-0 z-30">
           <div className="scene-copy scene-copy-scroll h-screen px-6 md:px-12">

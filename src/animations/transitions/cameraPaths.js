@@ -14,9 +14,6 @@ export const EASE = {
 
 export const DURATION = {
   opening: 2.4,
-  city: 1.6,
-  project: 1.4,
-  reverse: 1.3,
 };
 
 export const PARALLAX = {
@@ -24,28 +21,26 @@ export const PARALLAX = {
   transition: 0.25,
 };
 
-/*
- * India map is a flat schematic layout centered at world origin.
- * This maps a [lon, lat] pair onto that same local space so markers,
- * the camera, and the city map handoff all agree on where a place is.
- * The reference point (76, 15) sits roughly in the middle of Brainwing's
- * current cities so the marker cluster lands centered in frame rather
- * than pushed toward one edge.
- */
-export function indiaLocalPosition([lon, lat]) {
-  return [(lon - 76) * 0.075, (lat - 15) * 0.075];
-}
-
-/*
- * Resting scale for each map layer's own group. Kept modest (rather than
- * dramatic) because the camera now carries most of the "getting closer"
- * feeling - these just keep each layer readable at its resting camera
- * distance.
- */
-export const INDIA_MAP_SCALE = { idle: 1.6, active: 1.9 };
-export const CITY_MAP_SCALE = { idle: 2.0, active: 2.4 };
-
 export const CAMERA_RESTING = {
   earth: { position: [0, 0, 4.7], lookAt: [0, 0, 0], fov: 42 },
   india: { position: [0, 0, 3.4], lookAt: [0, 0, 0], fov: 40 },
 };
+
+/*
+ * Earth -> India scroll bands, shared between TransitionController (which
+ * sets phase/camera from these) and Earth/Atmosphere (which fade out over
+ * the same range) so they stay in lockstep:
+ *   0            - EARTH_PHASE_END    -> phase "earth"
+ *   EARTH_PHASE_END - INDIA_PHASE_START -> phase "india-transition"
+ *   INDIA_PHASE_START - 1             -> phase "india"
+ */
+export const EARTH_PHASE_END = 0.18;
+export const INDIA_PHASE_START = 0.58;
+
+/*
+ * Earth and the India map must never be visible at once - Earth fades
+ * away over EARTH_PHASE_END..EARTH_INDIA_MIDPOINT, then the Mapbox map
+ * fades in over EARTH_INDIA_MIDPOINT..INDIA_PHASE_START. Two sequential
+ * halves, not one overlapping cross-fade.
+ */
+export const EARTH_INDIA_MIDPOINT = (EARTH_PHASE_END + INDIA_PHASE_START) / 2;
