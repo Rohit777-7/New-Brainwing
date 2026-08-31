@@ -14,6 +14,7 @@ import { transitionController } from "../animations/transitions/TransitionContro
 export function App() {
   const stageRef = useRef(null);
   const phase = useSceneStore((s) => s.phase);
+  const isMapTransitioning = useSceneStore((s) => s.isMapTransitioning);
 
   useEffect(() => {
     const cleanup = initScrollController(stageRef.current);
@@ -58,7 +59,7 @@ export function App() {
             </div>
           </div>
 
-          <div className={`absolute inset-0 flex h-screen items-center justify-end px-6 transition-opacity duration-700 md:px-12 ${phase === "city" ? "opacity-100" : "opacity-0"}`}>
+          <div className={`absolute inset-0 flex h-screen items-center justify-end px-6 transition-opacity duration-700 md:px-12 ${phase === "city" && !isMapTransitioning ? "opacity-100" : "opacity-0"}`}>
             <div className="max-w-md pr-0 pt-24 md:pr-16">
               <p className="mb-3 text-[10px] uppercase tracking-[0.45em] text-white/40">02 / City</p>
               <h2 className="text-4xl font-light tracking-[-0.04em] md:text-6xl">Go closer.</h2>
@@ -66,7 +67,7 @@ export function App() {
             </div>
           </div>
 
-          <div className={`absolute inset-0 flex h-screen items-end px-6 pb-20 transition-opacity duration-700 md:px-12 ${phase === "project" ? "opacity-100" : "opacity-0"}`}>
+          <div className={`absolute inset-0 flex h-screen items-end px-6 pb-20 transition-opacity duration-700 md:px-12 ${phase === "project" && !isMapTransitioning ? "opacity-100" : "opacity-0"}`}>
             <div className="max-w-md">
               <p className="mb-3 text-[10px] uppercase tracking-[0.45em] text-white/40">03 / Project</p>
               <h2 className="text-4xl font-light tracking-[-0.04em] md:text-6xl">Every project has a point of view.</h2>

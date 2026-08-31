@@ -399,6 +399,9 @@ export function MapboxExperience() {
   const flyingRef =
     useRef(false);
 
+  const cutTimersRef =
+    useRef([]);
+
   const city =
     useSceneStore((s) => s.city);
 
@@ -677,6 +680,12 @@ export function MapboxExperience() {
     });
 
     return () => {
+      cutTimersRef.current.forEach(
+        (id) => window.clearTimeout(id)
+      );
+
+      cutTimersRef.current = [];
+
       cityMarkersRef.current.forEach(
         ({ marker }) =>
           marker.remove()
@@ -718,47 +727,81 @@ export function MapboxExperience() {
     }
 
     /*
-     * Freeze markers for the duration of a camera flight - the bearing
-     * swoop should read as the map/terrain moving under a fixed pin, not
-     * the pin swinging across the screen with it. Markers created while
-     * still mid-flight (project markers get torn down/rebuilt by the
-     * effect below whenever city/phase changes) also start hidden, so a
-     * rebuild during the flight doesn't pop a marker back into view
-     * early.
+     * Cinematic cut instead of an animated flyTo - a `flyTo` between
+     * India and city scale has to stream tiles continuously across every
+     * intermediate zoom level for 2-3 seconds, which is what was
+     * showing up as lag. `jumpTo` moves the camera instantly, so Mapbox
+     * only has to fetch tiles for the final view; a soft blur veil over
+     * the map (plus hiding the markers) covers the cut so it still reads
+     * as a deliberate transition rather than an abrupt snap. The city
+     * view still lands bearing-rotated/tilted - it just arrives that way
+     * behind the veil instead of visibly animating there.
      */
     const setMarkersHidden = (hidden) => {
       [
         ...cityMarkersRef.current,
         ...projectMarkersRef.current,
       ].forEach(({ el }) => {
-        el.style.transition =
-          "opacity 0.35s ease";
-        el.style.opacity = hidden
-          ? "0"
-          : "";
+        el.classList.toggle(
+          "map-marker--flying",
+          hidden
+        );
       });
     };
 
-    const flyWithFrozenMarkers = (
-      options
-    ) => {
+    const cutToView = (options) => {
       flyingRef.current = true;
       setMarkersHidden(true);
 
-      map.once("moveend", () => {
-        flyingRef.current = false;
-        setMarkersHidden(false);
-      });
+      useSceneStore
+        .getState()
+        .setIsMapTransitioning(true);
 
-      map.flyTo(options);
+      containerRef.current?.classList.add(
+        "map-canvas--veiled"
+      );
+
+      const jumpTimer =
+        window.setTimeout(() => {
+          map.jumpTo(options);
+
+          const revealTimer =
+            window.setTimeout(() => {
+              flyingRef.current = false;
+              setMarkersHidden(false);
+
+              useSceneStore
+                .getState()
+                .setIsMapTransitioning(
+                  false
+                );
+
+              containerRef.current?.classList.remove(
+                "map-canvas--veiled"
+              );
+            }, 220);
+
+          cutTimersRef.current.push(
+            revealTimer
+          );
+        }, 420);
+
+      cutTimersRef.current.push(
+        jumpTimer
+      );
     };
+
+    cutTimersRef.current.forEach(
+      (id) => window.clearTimeout(id)
+    );
+    cutTimersRef.current = [];
 
     if (phase === "city") {
       const location =
         cities[city];
 
       if (location) {
-        flyWithFrozenMarkers({
+        cutToView({
           center:
             location.coordinates,
 
@@ -767,24 +810,13 @@ export function MapboxExperience() {
           bearing:
             map.getBearing() +
             CITY_ZOOM.bearingOffset,
-
-          duration: 2600,
-          curve: 1.5,
-          speed: 0.85,
-
-          essential: true,
         });
       }
     }
 
     if (phase === "india") {
-      flyWithFrozenMarkers({
+      cutToView({
         ...INDIA_VIEW,
-
-        duration: 1900,
-        curve: 1.4,
-
-        essential: true,
       });
     }
   }, [phase, city]);
@@ -859,12 +891,14 @@ export function MapboxExperience() {
         );
 
       /*
-       * If a camera flight is already in progress when these markers
-       * get (re)built, start hidden too - the flight's own moveend
-       * handler reveals whatever markers exist at that point.
+       * If a camera cut is already in progress when these markers get
+       * (re)built, start hidden too - the cut's own reveal handler shows
+       * whatever markers exist at that point.
        */
       if (flyingRef.current) {
-        el.style.opacity = "0";
+        el.classList.add(
+          "map-marker--flying"
+        );
       }
 
       el.addEventListener(
@@ -971,11 +1005,11 @@ export function MapboxExperience() {
       {TOKEN ? (
         <div
           ref={containerRef}
-          className={
+          className={`map-canvas ${
             active
               ? "pointer-events-auto"
               : "pointer-events-none"
-          }
+          }`}
           style={{
             position: "absolute",
             top: "-3%",

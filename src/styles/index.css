@@ -95,7 +95,7 @@ button, a { cursor: pointer; }
     drop-shadow(0 0 3px rgba(255, 205, 140, 0.95))
     drop-shadow(0 0 9px rgba(255, 180, 100, 0.6))
     drop-shadow(0 0 18px rgba(255, 160, 80, 0.35));
-  transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+  transition: filter 0.3s, opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: bottom center;
 }
 
@@ -115,6 +115,7 @@ button, a { cursor: pointer; }
   border-radius: 9999px;
   background: radial-gradient(ellipse at center, rgba(255, 200, 130, 0.55) 0%, rgba(255, 200, 130, 0) 75%);
   animation: marker-pulse 2.6s ease-in-out infinite;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .map-marker--project .map-marker__pin-base { width: 10px; margin-left: -5px; }
@@ -130,12 +131,35 @@ button, a { cursor: pointer; }
   text-transform: uppercase;
   color: #fff;
   white-space: nowrap;
-  transition: opacity 0.3s;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .map-marker--dimmed .map-marker__pin,
 .map-marker--dimmed .map-marker__pin-base { opacity: 0.15; }
 .map-marker--dimmed .map-marker__label { opacity: 0.2; }
+
+/*
+ * Mapbox owns the marker's outer position transform (rewritten every
+ * render frame), so it can't be frozen directly - instead, during a
+ * camera cut we fade/shrink the inner pin+label (which Mapbox never
+ * touches) out fast, then let them settle back in slowly once the new
+ * view is revealed.
+ */
+.map-marker--flying {
+  pointer-events: none;
+}
+
+.map-marker--flying .map-marker__pin,
+.map-marker--flying .map-marker__pin-base {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.map-marker--flying .map-marker__label {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
 
 .map-marker--active .map-marker__pin {
   transform: scale(1.15);
@@ -143,6 +167,20 @@ button, a { cursor: pointer; }
     drop-shadow(0 0 4px rgba(255, 225, 175, 1))
     drop-shadow(0 0 12px rgba(255, 195, 120, 0.85))
     drop-shadow(0 0 24px rgba(255, 170, 90, 0.5));
+}
+
+/*
+ * Soft blur veil covering the map cut between India and city scale -
+ * hides the instant jumpTo (and any brief tile pop-in as new tiles
+ * load) behind a deliberate cinematic dip instead of an abrupt snap.
+ */
+.map-canvas {
+  transition: filter 0.5s ease, opacity 0.5s ease;
+}
+
+.map-canvas--veiled {
+  filter: blur(24px) brightness(0.5);
+  opacity: 0.85;
 }
 
 .mapboxgl-popup.map-popup-wrap .mapboxgl-popup-content {
