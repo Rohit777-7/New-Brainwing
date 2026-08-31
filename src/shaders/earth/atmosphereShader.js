@@ -52,7 +52,7 @@ void main() {
     fresnel =
         pow(
             fresnel,
-            2.8
+            3.6
         );
 
     float pulse =
@@ -64,16 +64,16 @@ void main() {
 
     vec3 color =
         vec3(
-            0.035,
-            0.25,
-            0.75
+            0.1,
+            0.4,
+            0.88
         );
 
     gl_FragColor =
         vec4(
             color,
             fresnel *
-            0.42 *
+            0.32 *
             pulse
         );
 }

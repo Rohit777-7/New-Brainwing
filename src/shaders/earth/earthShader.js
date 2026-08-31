@@ -28,7 +28,6 @@ export const earthFragment = `
 
 uniform sampler2D uDayTexture;
 uniform sampler2D uNightTexture;
-uniform sampler2D uTopographyTexture;
 
 uniform vec3 uSunDirection;
 
@@ -58,7 +57,7 @@ float atmosphere(
 
     return pow(
         fresnel,
-        3.5
+        4.5
     );
 }
 
@@ -144,13 +143,14 @@ void main() {
 
 
     /*
-     * Day Earth.
+     * Day Earth. The real day texture is already properly exposed, so
+     * this only needs to dim it toward the terminator, not brighten it.
      */
     vec3 dayColor =
         day *
         (
-            0.38 +
-            dayFactor * 0.85
+            0.55 +
+            dayFactor * 0.55
         );
 
 
@@ -178,20 +178,6 @@ void main() {
 
 
     /*
-     * Topography subtle detail.
-     */
-    float terrain =
-        texture2D(
-            uTopographyTexture,
-            vUv
-        ).r;
-
-    dayColor +=
-        terrain *
-        0.045;
-
-
-    /*
      * Combine Earth.
      */
     vec3 color =
@@ -213,16 +199,16 @@ void main() {
 
     vec3 atmosphereColor =
         vec3(
-            0.05,
-            0.34,
-            0.85
+            0.12,
+            0.42,
+            0.92
         );
 
 
     color +=
         atmosphereColor *
         rim *
-        0.65;
+        0.4;
 
 
     /* -----------------------------------------

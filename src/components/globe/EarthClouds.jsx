@@ -1,16 +1,16 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { createCloudsTexture } from "../../shaders/earth/proceduralTextures";
 import { EARTH_RADIUS } from "./earthConfig";
 
 export function EarthClouds({ progress = 0 }) {
   const clouds = useRef();
 
-  const texture = useMemo(() => createCloudsTexture(), []);
-
-  texture.colorSpace =
-    THREE.SRGBColorSpace;
+  const texture = useMemo(() => {
+    const map = new THREE.TextureLoader().load("/assets/earth/clouds.png");
+    map.colorSpace = THREE.SRGBColorSpace;
+    return map;
+  }, []);
 
   useFrame((state, delta) => {
     if (!clouds.current) return;
@@ -28,7 +28,7 @@ export function EarthClouds({ progress = 0 }) {
     clouds.current.material.opacity =
       THREE.MathUtils.lerp(
         clouds.current.material.opacity,
-        0.22 *
+        0.65 *
           (1 -
             THREE.MathUtils.clamp(
               progress * 1.5,
@@ -51,10 +51,10 @@ export function EarthClouds({ progress = 0 }) {
       <meshBasicMaterial
         map={texture}
         transparent
-        opacity={0.22}
+        opacity={0.65}
         depthWrite={false}
         blending={
-          THREE.AdditiveBlending
+          THREE.NormalBlending
         }
         side={THREE.DoubleSide}
       />

@@ -20,12 +20,12 @@ export function Atmosphere({ progress = 0 }) {
 
     if (mesh.current) {
       const shrink = 1 - THREE.MathUtils.smoothstep(progress, EARTH_PHASE_END, EARTH_INDIA_MIDPOINT);
-      mesh.current.scale.setScalar(1.045 * shrink);
+      mesh.current.scale.setScalar(1.028 * shrink);
     }
   });
 
   return (
-    <mesh ref={mesh} scale={1.045}>
+    <mesh ref={mesh} scale={1.028}>
       <sphereGeometry
         args={[EARTH_RADIUS, 96, 96]}
       />

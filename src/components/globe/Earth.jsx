@@ -5,11 +5,6 @@ import {
   earthVertex,
   earthFragment,
 } from "../../shaders/earth/earthShader";
-import {
-  createDayTexture,
-  createNightTexture,
-  createTopographyTexture,
-} from "../../shaders/earth/proceduralTextures";
 import { useSceneStore } from "../../store/sceneStore";
 import { EARTH_PHASE_END, INDIA_PHASE_START } from "../../animations/transitions/cameraPaths";
 import { EARTH_RADIUS } from "./earthConfig";
@@ -18,18 +13,17 @@ export function Earth({ progress = 0 }) {
   const earth = useRef();
   const material = useRef();
 
-  const textures = useMemo(
-    () => ({
-      day: createDayTexture(),
-      night: createNightTexture(),
-      topography: createTopographyTexture(),
-    }),
-    []
-  );
+  const textures = useMemo(() => {
+    const loader = new THREE.TextureLoader();
 
-  textures.day.colorSpace = THREE.SRGBColorSpace;
-  textures.night.colorSpace = THREE.SRGBColorSpace;
-  textures.topography.colorSpace = THREE.SRGBColorSpace;
+    const day = loader.load("/assets/earth/day.jpg");
+    const night = loader.load("/assets/earth/night.png");
+
+    day.colorSpace = THREE.SRGBColorSpace;
+    night.colorSpace = THREE.SRGBColorSpace;
+
+    return { day, night };
+  }, []);
 
   useFrame((state, delta) => {
     if (!earth.current || !material.current) return;
@@ -129,10 +123,6 @@ export function Earth({ progress = 0 }) {
 
             uNightTexture: {
               value: textures.night,
-            },
-
-            uTopographyTexture: {
-              value: textures.topography,
             },
 
             uTime: {

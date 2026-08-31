@@ -412,6 +412,63 @@ export function MapboxExperience() {
     phase === "project";
 
   /*
+   * City-scale cursor parallax - a subtle mouse-tracked pan on the map
+   * container itself (CSS transform, not the map's real camera) so the
+   * city view feels alive without touching Mapbox's own move/click math.
+   * The container is oversized via CSS so the translated edges never
+   * reveal empty space behind it.
+   */
+  const parallaxTarget = useRef({ x: 0, y: 0 });
+  const parallaxCurrent = useRef({ x: 0, y: 0 });
+  const parallaxActiveRef = useRef(false);
+
+  parallaxActiveRef.current =
+    phase === "city" || phase === "project";
+
+  useEffect(() => {
+    const onMove = (event) => {
+      if (!parallaxActiveRef.current) return;
+
+      parallaxTarget.current = {
+        x: (event.clientX / window.innerWidth) * 2 - 1,
+        y: (event.clientY / window.innerHeight) * 2 - 1,
+      };
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () =>
+      window.removeEventListener("pointermove", onMove);
+  }, []);
+
+  useEffect(() => {
+    const MAX_OFFSET = 26;
+    let frame;
+
+    const tick = () => {
+      const target = parallaxActiveRef.current
+        ? parallaxTarget.current
+        : { x: 0, y: 0 };
+
+      parallaxCurrent.current.x +=
+        (target.x - parallaxCurrent.current.x) * 0.045;
+
+      parallaxCurrent.current.y +=
+        (target.y - parallaxCurrent.current.y) * 0.045;
+
+      if (containerRef.current) {
+        const tx = -parallaxCurrent.current.x * MAX_OFFSET;
+        const ty = -parallaxCurrent.current.y * MAX_OFFSET;
+        containerRef.current.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+      }
+
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  /*
    * If there is no token, use the fallback.
    */
   useEffect(() => {
@@ -468,6 +525,88 @@ export function MapboxExperience() {
     );
 
     map.on("load", () => {
+      /*
+       * Hide place/road/POI labels baked into the base style so the only
+       * names on the map are our own city markers - but keep sea/ocean
+       * labels (Arabian Sea, Bay of Bengal) for geographic context, and
+       * restyle them to match the muted, uppercase premium look.
+       */
+      const KEEP_LABEL =
+        /water|sea|ocean|bay|gulf/i;
+
+      map.getStyle().layers.forEach((layer) => {
+        if (layer.type !== "symbol") return;
+
+        if (KEEP_LABEL.test(layer.id)) {
+          try {
+            map.setPaintProperty(
+              layer.id,
+              "text-color",
+              "rgba(255,255,255,0.35)"
+            );
+            map.setPaintProperty(
+              layer.id,
+              "text-halo-width",
+              0
+            );
+          } catch {
+            // property not supported on this layer - leave default styling
+          }
+          return;
+        }
+
+        map.setLayoutProperty(
+          layer.id,
+          "visibility",
+          "none"
+        );
+      });
+
+      /*
+       * Warm gold country/state borders instead of the style's default
+       * grey, to match the premium satellite-atlas look.
+       */
+      [
+        "admin-0-boundary",
+        "admin-1-boundary",
+        "admin-0-boundary-disputed",
+      ].forEach((id) => {
+        if (!map.getLayer(id)) return;
+        map.setPaintProperty(id, "line-color", "#caa46b");
+        map.setPaintProperty(id, "line-opacity", 0.55);
+      });
+
+      /*
+       * Hillshade relief so mountain ranges (Himalayas, Western Ghats)
+       * catch light instead of reading as flat, uniform terrain.
+       */
+      map.addSource("brainwing-dem", {
+        type: "raster-dem",
+        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+        tileSize: 512,
+        maxzoom: 14,
+      });
+
+      const firstSymbolLayer = map
+        .getStyle()
+        .layers.find((layer) => layer.type === "symbol");
+
+      map.addLayer(
+        {
+          id: "brainwing-hillshade",
+          type: "hillshade",
+          source: "brainwing-dem",
+          paint: {
+            "hillshade-illumination-direction": 315,
+            "hillshade-exaggeration": 0.85,
+            "hillshade-shadow-color": "#000000",
+            "hillshade-highlight-color": "#caa46b",
+            "hillshade-accent-color": "#3a2f22",
+          },
+        },
+        firstSymbolLayer?.id
+      );
+
       indiaLocations.forEach(
         (location) => {
           const el =
@@ -749,11 +888,18 @@ export function MapboxExperience() {
       {TOKEN ? (
         <div
           ref={containerRef}
-          className={`h-full w-full ${
+          className={
             active
               ? "pointer-events-auto"
               : "pointer-events-none"
-          }`}
+          }
+          style={{
+            position: "absolute",
+            top: "-5%",
+            left: "-5%",
+            width: "110%",
+            height: "110%",
+          }}
         />
       ) : (
         <IndiaFallback />
