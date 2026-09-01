@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowUpRight, X } from "lucide-react";
 import { useSceneStore } from "../../store/sceneStore";
 import { transitionController } from "../../animations/transitions/TransitionController";
@@ -49,9 +50,12 @@ export function ProjectPanel() {
         </div>
         <h3 className="text-2xl font-light tracking-[-0.04em]">{displayProject.name}</h3>
         <p className="mt-3 text-sm leading-6 text-white/45">{displayProject.description}</p>
-        <button className="mt-5 inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-white transition hover:text-white/60">
+        <Link
+          to={`/projects/${displayProject.id}`}
+          className="mt-5 inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-white transition hover:text-white/60"
+        >
           View project <ArrowUpRight size={13} />
-        </button>
+        </Link>
       </div>
     </aside>
   );

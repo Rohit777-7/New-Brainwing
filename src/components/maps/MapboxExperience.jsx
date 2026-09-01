@@ -402,6 +402,9 @@ export function MapboxExperience() {
   const cutTimersRef =
     useRef([]);
 
+  const prevPhaseRef =
+    useRef(phase);
+
   const city =
     useSceneStore((s) => s.city);
 
@@ -528,9 +531,47 @@ export function MapboxExperience() {
          * way back.
          */
         maxTileCacheSize: 120,
+
+        /*
+         * Mapbox's default scroll-zoom anchors to the cursor position,
+         * so anything not exactly under the mouse visibly drifts while
+         * zooming (the city marker you're hovering near looks "fixed",
+         * everything else looks like it's moving). Anchoring to the
+         * view's center instead makes zooming predictable/symmetric
+         * around the city marker that's actually there after the cut.
+         */
+        scrollZoom: {
+          around: "center",
+        },
       });
 
     mapRef.current = map;
+
+    /*
+     * Explicit hover tracking (rather than resolving each wheel event's
+     * target) so the page-navigation snap controller can reliably tell
+     * when the pointer is over the live map and hand scroll/zoom over
+     * to Mapbox's own handling instead of intercepting it.
+     */
+    const handlePointerEnter = () =>
+      useSceneStore
+        .getState()
+        .setIsPointerOverMap(true);
+
+    const handlePointerLeave = () =>
+      useSceneStore
+        .getState()
+        .setIsPointerOverMap(false);
+
+    containerRef.current.addEventListener(
+      "pointerenter",
+      handlePointerEnter
+    );
+
+    containerRef.current.addEventListener(
+      "pointerleave",
+      handlePointerLeave
+    );
 
     map.on(
       "movestart",
@@ -547,6 +588,53 @@ export function MapboxExperience() {
           PARALLAX.idle
         )
     );
+
+    /*
+     * Zoom stays enabled everywhere, India included - but a marker that
+     * isn't exactly at the zoom's anchor point will visibly drift while
+     * zoom level is actively changing (correct map physics, but reads
+     * as broken in the city/project view where the framing is meant to
+     * feel deliberate). Hiding markers for the duration of the zoom and
+     * letting them settle back in once it stops means nothing is ever
+     * seen sliding around, without turning zoom off. Skipped while a
+     * cut transition (flyingRef) already owns the hide/reveal timing,
+     * so the two don't fight each other.
+     */
+    map.on("zoomstart", () => {
+      if (flyingRef.current) return;
+
+      const phase =
+        useSceneStore.getState().phase;
+
+      if (
+        phase !== "city" &&
+        phase !== "project"
+      ) {
+        return;
+      }
+
+      [
+        ...cityMarkersRef.current,
+        ...projectMarkersRef.current,
+      ].forEach(({ el }) => {
+        el.classList.add(
+          "map-marker--flying"
+        );
+      });
+    });
+
+    map.on("zoomend", () => {
+      if (flyingRef.current) return;
+
+      [
+        ...cityMarkersRef.current,
+        ...projectMarkersRef.current,
+      ].forEach(({ el }) => {
+        el.classList.remove(
+          "map-marker--flying"
+        );
+      });
+    });
 
     map.on("load", () => {
       /*
@@ -680,6 +768,20 @@ export function MapboxExperience() {
     });
 
     return () => {
+      containerRef.current?.removeEventListener(
+        "pointerenter",
+        handlePointerEnter
+      );
+
+      containerRef.current?.removeEventListener(
+        "pointerleave",
+        handlePointerLeave
+      );
+
+      useSceneStore
+        .getState()
+        .setIsPointerOverMap(false);
+
       cutTimersRef.current.forEach(
         (id) => window.clearTimeout(id)
       );
@@ -796,6 +898,11 @@ export function MapboxExperience() {
     );
     cutTimersRef.current = [];
 
+    const prevPhase =
+      prevPhaseRef.current;
+
+    prevPhaseRef.current = phase;
+
     if (phase === "city") {
       const location =
         cities[city];
@@ -814,10 +921,81 @@ export function MapboxExperience() {
       }
     }
 
-    if (phase === "india") {
+    /*
+     * The map camera already sits at INDIA_VIEW from the moment it's
+     * created (and never moves for the Earth -> India scroll transition
+     * - that crossfade is handled separately) - only actually cut the
+     * camera back when returning from a city, where it really did move.
+     */
+    if (
+      phase === "india" &&
+      (prevPhase === "city" ||
+        prevPhase === "project")
+    ) {
       cutToView({
         ...INDIA_VIEW,
       });
+    }
+
+    /*
+     * Arriving at India fresh from the Earth scroll (no camera cut
+     * needed, that crossfade already handles the reveal) still gets the
+     * same brief blur-veil flourish the city cut uses, plus the
+     * markers' own settle-in fade, so the moment India "arrives" reads
+     * consistently with every other transition in the app.
+     */
+    if (
+      phase === "india" &&
+      prevPhase === "india-transition"
+    ) {
+      setMarkersHidden(true);
+
+      containerRef.current?.classList.add(
+        "map-canvas--veiled"
+      );
+
+      const pulseTimer =
+        window.setTimeout(() => {
+          setMarkersHidden(false);
+
+          containerRef.current?.classList.remove(
+            "map-canvas--veiled"
+          );
+        }, 380);
+
+      cutTimersRef.current.push(
+        pulseTimer
+      );
+    }
+
+    /*
+     * Mirror that same flourish for the reverse trip - leaving India
+     * back to Earth (via the "<- Earth" button or scroll-up) gets the
+     * identical brief veil pulse right as Earth fully takes back over,
+     * so both directions of this transition feel consistent.
+     */
+    if (
+      phase === "earth" &&
+      prevPhase === "india-transition"
+    ) {
+      setMarkersHidden(true);
+
+      containerRef.current?.classList.add(
+        "map-canvas--veiled"
+      );
+
+      const pulseTimer =
+        window.setTimeout(() => {
+          setMarkersHidden(false);
+
+          containerRef.current?.classList.remove(
+            "map-canvas--veiled"
+          );
+        }, 380);
+
+      cutTimersRef.current.push(
+        pulseTimer
+      );
     }
   }, [phase, city]);
 

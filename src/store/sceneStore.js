@@ -10,6 +10,7 @@ export const useSceneStore = create((set) => ({
   highlightedMarker: null,
   parallaxStrength: 1,
   isMapTransitioning: false,
+  isPointerOverMap: false,
   camera: {
     position: [0, 0, 6.5],
     lookAt: [0, 0, 0],
@@ -24,5 +25,6 @@ export const useSceneStore = create((set) => ({
   setHighlightedMarker: (highlightedMarker) => set({ highlightedMarker }),
   setParallaxStrength: (parallaxStrength) => set({ parallaxStrength }),
   setIsMapTransitioning: (isMapTransitioning) => set({ isMapTransitioning }),
+  setIsPointerOverMap: (isPointerOverMap) => set({ isPointerOverMap }),
   setCamera: (camera) => set({ camera }),
 }));

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Outlet } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { SceneExperience } from "../scenes/SceneExperience";
 import { Header } from "../components/navigation/Header";
@@ -13,12 +14,14 @@ import { transitionController } from "../animations/transitions/TransitionContro
 
 export function App() {
   const stageRef = useRef(null);
+  const scrollControllerRef = useRef(null);
   const phase = useSceneStore((s) => s.phase);
   const isMapTransitioning = useSceneStore((s) => s.isMapTransitioning);
 
   useEffect(() => {
-    const cleanup = initScrollController(stageRef.current);
-    return () => cleanup?.();
+    const controller = initScrollController(stageRef.current);
+    scrollControllerRef.current = controller;
+    return () => controller.destroy();
   }, []);
 
   return (
@@ -84,12 +87,24 @@ export function App() {
           </button>
         )}
 
+        {phase === "india" && (
+          <button
+            onClick={() => scrollControllerRef.current?.goBack()}
+            className="pointer-events-auto absolute left-6 top-24 z-40 flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] text-white/50 transition hover:text-white md:left-12"
+          >
+            <span aria-hidden>&larr;</span> Earth
+          </button>
+        )}
+
         <ProjectPanel />
       </section>
 
       <div className={`pointer-events-none fixed bottom-8 left-1/2 z-40 -translate-x-1/2 text-[9px] uppercase tracking-[0.4em] text-white/30 transition-opacity duration-500 ${phase === "earth" || phase === "india" ? "opacity-100" : "opacity-0"}`}>
         Scroll to explore
       </div>
+
+      {/* Renders ProjectPage on top when /projects/:id matches - App stays mounted underneath either way. */}
+      <Outlet />
     </main>
   );
 }
